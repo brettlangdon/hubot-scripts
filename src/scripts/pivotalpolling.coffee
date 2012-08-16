@@ -52,27 +52,34 @@ get_project_ids = () ->
 
 
 send = (msg, story)->
-     message = "#{story.id['$t']} #{story.name}"
+     message = "##{story.id['$t']} #{story.name}"
      message += " (#{story.owned_by})" if story.owned_by
      message += " is #{story.current_state}" if story.current_state && story.current_state != "unstarted"
      if not msg
-         the_robot.send(null, message)
-         the_robot.send(null, story.url)
+         #irc adapter
+         if the_robot.adapter.bot and the_robot.adapter.bot.chans
+             Object.keys(the_robot.adapter.bot.chans).forEach( (c) ->
+                 the_robot.adapter.bot.notice(c, message)
+                 the_robot.adapter.bot.notice(c, story.url)
+             )
+         else
+             the_robot.send({}, message)
+             the_robot.send({}, story.url)
      else
          msg.send(message)
          msg.send(story.url)
 
 poll = (msg) ->
     since = new Date(last_check)
-    since = since.getFullYear() + '/' + (since.getMonth()+1) + '/' + since.getDate() + ' ' + since.getHours() + '%3a' + since.getMinutes() + '%3a' + since.getSeconds()
+    since = since.getUTCFullYear() + '/' + (since.getUTCMonth()+1) + '/' + since.getUTCDate() + ' ' + since.getUTCHours() + ':' + since.getUTCMinutes() + ':' + since.getUTCSeconds() + ' UTC'
     for name in projects.names
-        the_robot.http('https://www.pivotaltracker.com/services/v3/projects/'+projects[name]+'/stories?filter=modified_since:"' + since + '"')
+       	the_robot.http('https://www.pivotaltracker.com/services/v3/projects/'+projects[name]+'/stories?filter=modified_since:"' + since + '"')
                  .headers('X-TrackerToken':token)
                  .get() (err,res,body) ->
                      if err
                          the_robot.logger.error err
                          return
-
+	
                      body = xml2json.toJson(body, {object:true})
                      if not body.stories or not body.stories.story
                         if msg
@@ -96,7 +103,6 @@ module.exports = (robot) ->
     if projects.names.length <= 0
         robot.logger.error 'No HUBOT_PIVOTAL_PROJECTS given'
         return
-
 
     get_project_ids()    
 
